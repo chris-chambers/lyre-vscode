@@ -142,6 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 			const response = await client.sendRequest<EvalResponse>('lyre/eval', {
 				code,
+				lineno: sel.start.line + 1,
 				path: editor.document.fileName,
 			});
 
