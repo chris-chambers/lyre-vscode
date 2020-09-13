@@ -1,9 +1,10 @@
+import { readFileSync } from 'fs';
 import * as net from 'net';
 
 import * as vscode from 'vscode';
 
 import {
-	LanguageClient,
+	CloseAction, ErrorAction, LanguageClient, Message, RevealOutputChannelOn,
 } from 'vscode-languageclient';
 
 let client: LanguageClient | undefined;
@@ -57,11 +58,58 @@ class LyreContentProvider implements vscode.TextDocumentContentProvider {
 // this method is called when your extension is activated
 // your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-
 	const provider = new LyreContentProvider();
 	context.subscriptions.push(
 		vscode.workspace.registerTextDocumentContentProvider('lyre', provider),
 	);
+
+	const outputChannel = vscode.window.createOutputChannel('Lyre');
+
+	async function connect(host: string, port: number) {
+		client = new LanguageClient(
+			'lyre',
+			'Lyre',
+			async () => {
+				const conn = net.createConnection(port, host);
+				return {
+					writer: conn,
+					reader: conn,
+					detached: false,
+				};
+			},
+			{
+				errorHandler: {
+					error(_error: Error, _message: Message, count: number) {
+						if (count && count <= 3) {
+							return ErrorAction.Continue;
+						}
+						return ErrorAction.Shutdown;
+					},
+					closed() {
+						return CloseAction.DoNotRestart;
+					},
+				},
+				outputChannel: outputChannel,
+				revealOutputChannelOn: RevealOutputChannelOn.Never,
+			}
+		);
+
+		context.subscriptions.push(client.start());
+		await client.onReady();
+	}
+
+	async function autoconnect(portfile: string) {
+		const lines = readFileSync(portfile, 'utf-8').split('\n');
+		for (const line of lines) {
+			try {
+				const [host, port, ..._] = line.split(/\s+/);
+				return await connect(host, parseInt(port));
+			} catch (ex) {
+				outputChannel.appendLine(`${ex}`);
+			}
+		}
+		outputChannel.appendLine(`Failed to connect to any server: ${portfile}`);
+	}
 
 	const replResultDecorationType = vscode.window.createTextEditorDecorationType({
 		after: {
@@ -70,7 +118,25 @@ export function activate(context: vscode.ExtensionContext) {
 		},
 	});
 
+	const rootFolder = vscode.workspace.workspaceFolders![0];
+	const watcher = vscode.workspace.createFileSystemWatcher(
+		new vscode.RelativePattern(rootFolder, '.lyre-port'),
+		false, true, true);
+
+  // TODO: .catch
+  vscode.workspace.findFiles('.lyre-port').then(portfiles => {
+		if (portfiles.length === 0) {
+			return;
+		}
+
+		autoconnect(portfiles[0].fsPath);
+	});
+
 	context.subscriptions.concat(
+		watcher,
+		watcher.onDidCreate(e => {
+			autoconnect(e.fsPath);
+		}),
 		vscode.workspace.onDidChangeTextDocument(e => {
 			for (const editor of vscode.window.visibleTextEditors) {
 				if (editor.document === e.document) {
@@ -99,24 +165,7 @@ export function activate(context: vscode.ExtensionContext) {
 				return;
 			}
 
-			client = new LanguageClient(
-				'lyre',
-				'Lyre',
-				async () => {
-					const conn = net.createConnection(parseInt(port), host);
-					return {
-						writer: conn,
-						reader: conn,
-						detached: true,
-					};
-				},
-				{
-					// client options?
-				}
-			);
-
-			context.subscriptions.push(client.start());
-			await client.onReady();
+			await connect(host, parseInt(port));
 		}),
 		vscode.commands.registerCommand('lyre-vscode.sendToRepl', async () => {
 			const editor = vscode.window.activeTextEditor;
