@@ -65,18 +65,33 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const outputChannel = vscode.window.createOutputChannel('Lyre');
 
+	function createConnectionAsync(host: string, port: number): Promise<net.Socket> {
+		return new Promise((resolve, reject) => {
+			const conn = net.createConnection(port, host);
+			conn.once('error', reject);
+			conn.once('connect', () => {
+				conn.off('error', reject);
+				resolve(conn);
+			});
+		});
+	}
+
 	async function connect(host: string, port: number) {
+		if (client) {
+			client.stop();
+		}
+
+		console.log(`connecting to ${host}:${port}`);
+		const conn = await createConnectionAsync(host, port);
+
 		client = new LanguageClient(
 			'lyre',
 			'Lyre',
-			async () => {
-				const conn = net.createConnection(port, host);
-				return {
-					writer: conn,
-					reader: conn,
-					detached: false,
-				};
-			},
+			async () => ({
+				writer: conn,
+				reader: conn,
+				detached: true,
+			}),
 			{
 				errorHandler: {
 					error(_error: Error, _message: Message, count: number) {
@@ -86,21 +101,34 @@ export function activate(context: vscode.ExtensionContext) {
 						return ErrorAction.Shutdown;
 					},
 					closed() {
+						client = undefined;
 						return CloseAction.DoNotRestart;
 					},
 				},
 				outputChannel: outputChannel,
 				revealOutputChannelOn: RevealOutputChannelOn.Never,
+				initializationFailedHandler: error => {
+					return false;
+				},
 			}
 		);
 
 		context.subscriptions.push(client.start());
-		await client.onReady();
+		try {
+			await client.onReady();
+		} finally {
+			console.log('done waiting');
+		}
 	}
 
 	async function autoconnect(portfile: string) {
 		const lines = readFileSync(portfile, 'utf-8').split('\n');
+		console.log(`.lyre-port lines: ${lines}`);
 		for (const line of lines) {
+			if (line.length === 0) {
+				continue;
+			}
+
 			try {
 				const [host, port, ..._] = line.split(/\s+/);
 				return await connect(host, parseInt(port));
@@ -121,7 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const rootFolder = vscode.workspace.workspaceFolders![0];
 	const watcher = vscode.workspace.createFileSystemWatcher(
 		new vscode.RelativePattern(rootFolder, '.lyre-port'),
-		false, true, true);
+		false, false, true);
 
   // TODO: .catch
   vscode.workspace.findFiles('.lyre-port').then(portfiles => {
@@ -129,12 +157,16 @@ export function activate(context: vscode.ExtensionContext) {
 			return;
 		}
 
+		console.log(`autoconnect via: ${portfiles[0].fsPath}`);
 		autoconnect(portfiles[0].fsPath);
 	});
 
 	context.subscriptions.concat(
 		watcher,
 		watcher.onDidCreate(e => {
+			autoconnect(e.fsPath);
+		}),
+		watcher.onDidChange(e => {
 			autoconnect(e.fsPath);
 		}),
 		vscode.workspace.onDidChangeTextDocument(e => {
