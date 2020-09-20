@@ -148,7 +148,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const rootFolder = vscode.workspace.workspaceFolders![0];
 	const watcher = vscode.workspace.createFileSystemWatcher(
-		new vscode.RelativePattern(rootFolder, '.lyre-port'),
+		new vscode.RelativePattern(rootFolder, '**/.lyre-port'),
 		false, false, true);
 
   // TODO: .catch
