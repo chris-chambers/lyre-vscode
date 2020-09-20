@@ -1,7 +1,7 @@
 {
-	"name": "lyre-vscode",
-	"displayName": "lyre",
-	"publisher": "chris-chambers",
+	"name": "lyre",
+	"displayName": "Lyre",
+	"publisher": "python-lyre",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/chris-chambers/lyre-vscode"
@@ -21,10 +21,6 @@
 	"main": "./out/extension.js",
 	"contributes": {
 		"commands": [
-			{
-				"command": "lyre-vscode.start",
-				"title": "Lyre: Start"
-			},
 			{
 				"command": "lyre-vscode.connect",
 				"title": "Lyre: Connect"

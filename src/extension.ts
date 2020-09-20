@@ -177,9 +177,6 @@ export function activate(context: vscode.ExtensionContext) {
 				}
 			}
 		}),
-		vscode.commands.registerCommand('lyre-vscode.start', () => {
-			vscode.window.showInformationMessage('Hello World from lyre!');
-		}),
 		vscode.commands.registerCommand('lyre-vscode.connect', async () => {
 			const host = await vscode.window.showInputBox({
 				prompt: 'host',
