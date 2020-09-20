@@ -147,12 +147,12 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 
 	const rootFolder = vscode.workspace.workspaceFolders![0];
+	const lyrePortPattern = new vscode.RelativePattern(rootFolder, '**/.lyre-port');
 	const watcher = vscode.workspace.createFileSystemWatcher(
-		new vscode.RelativePattern(rootFolder, '**/.lyre-port'),
-		false, false, true);
+		lyrePortPattern, false, false, true);
 
   // TODO: .catch
-  vscode.workspace.findFiles('.lyre-port').then(portfiles => {
+  vscode.workspace.findFiles(lyrePortPattern).then(portfiles => {
 		if (portfiles.length === 0) {
 			return;
 		}
