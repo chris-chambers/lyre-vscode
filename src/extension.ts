@@ -222,6 +222,10 @@ export function activate(context: vscode.ExtensionContext) {
 				code,
 				lineno: sel.start.line + 1,
 				path: editor.document.fileName,
+				importPaths: [
+					// FIXME: Handle non-file URIs
+					vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath,
+				].filter(x => !!x),
 			});
 
 			if (response.status === 'ok') {
